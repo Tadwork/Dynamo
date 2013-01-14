@@ -34,7 +34,7 @@ using System.Windows.Controls;
 namespace Dynamo.Elements
 {
     [ElementName("Watch 3D")]
-    [ElementCategory(BuiltinElementCategories.MISC)]
+    [ElementCategory(BuiltinElementCategories.DEBUG)]
     [ElementDescription("Shows a dynamic preview of geometry.")]
     [RequiresTransaction(false)]
     public class dyn3DPreview : dynNode, INotifyPropertyChanged
@@ -44,6 +44,7 @@ namespace Dynamo.Elements
         PointsVisual3D fixedPoints;
         List<LinesVisual3D> linesList;
         System.Windows.Point rightMousePoint;
+        List<System.Windows.Media.Color> colors = new List<System.Windows.Media.Color>();
 
         bool isDrawingPoints;
         ParticleSystem ps;
@@ -83,11 +84,11 @@ namespace Dynamo.Elements
 
             //take out the left and right margins
             //and make this so it's not so wide
-            this.inputGrid.Margin = new Thickness(10, 5, 10, 5);
+            this.inputGrid.Margin = new Thickness(10, 10, 10, 10);
             this.topControl.Width = 400;
             this.topControl.Height = 300;
-            this.elementShine.Visibility = System.Windows.Visibility.Hidden;
-            this.elementRectangle.Visibility = System.Windows.Visibility.Hidden;
+            //this.elementShine.Visibility = System.Windows.Visibility.Hidden;
+            //this.elementRectangle.Visibility = System.Windows.Visibility.Hidden;
 
             //add a 3D viewport to the input grid
             //http://helixtoolkit.codeplex.com/wikipage?title=HelixViewport3D&referringTitle=Documentation
@@ -96,6 +97,7 @@ namespace Dynamo.Elements
             view.CameraRotationMode = CameraRotationMode.Turntable;
             view.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
             view.VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
+            
             //view.IsHitTestVisible = true;
             view.ShowFrameRate = true;
 
@@ -108,8 +110,9 @@ namespace Dynamo.Elements
             points = new PointsVisual3D { Color = Colors.Black, Size = 4 };
             view.Children.Add(points);
 
-            List<System.Windows.Media.Color> colors = new List<System.Windows.Media.Color>();
-            colors.Add(Colors.LightGray); //01
+            // a list of 10 colors to be used for 
+            // mapping analysis results
+            colors.Add(Colors.Black); //01
             colors.Add(Colors.LightBlue); //02
             colors.Add(Colors.Blue); //03
             colors.Add(Colors.Purple); //04
@@ -119,6 +122,7 @@ namespace Dynamo.Elements
             colors.Add(Colors.Orange); //08
             colors.Add(Colors.OrangeRed); //09
             colors.Add(Colors.Red); //10
+            colors.Add(Colors.Black);//11 for naked lines and curves
 
             FixedPoints = new Point3DCollection();
             Points = new List<Point3DCollection>();
@@ -136,6 +140,19 @@ namespace Dynamo.Elements
                 view.Children.Add(lines);
             }
 
+            System.Windows.Shapes.Rectangle backgroundRect = new System.Windows.Shapes.Rectangle();
+            backgroundRect.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+            backgroundRect.VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
+            backgroundRect.RadiusX = 10;
+            backgroundRect.RadiusY = 10;
+            backgroundRect.IsHitTestVisible = false;
+            BrushConverter bc = new BrushConverter();
+            Brush strokeBrush = (Brush)bc.ConvertFrom("#313131");
+            backgroundRect.Stroke = strokeBrush;
+            backgroundRect.StrokeThickness = 1;
+            SolidColorBrush backgroundBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(250,250,216));
+            backgroundRect.Fill = backgroundBrush;
+            this.inputGrid.Children.Add(backgroundRect);
             this.inputGrid.Children.Add(view);
 
             CompositionTarget.Rendering += new EventHandler(CompositionTarget_Rendering);
@@ -234,29 +251,38 @@ namespace Dynamo.Elements
                         {
                             ps = (ParticleSystem)test;
 
-                            //try
-                            //{
+                            try
+                            {
 
                                 UpdateVisualsFromParticleSystem();
 
                                 RaisePropertyChanged("Points");
 
-                            //}
-                            //catch (Exception e)
-                            //{
-                            //    dynElementSettings.SharedInstance.Bench.Log("Something wrong drawing 3d preview. " + e.ToString());
+                            }
+                            catch (Exception e)
+                            {
+                                dynElementSettings.SharedInstance.Bench.Log("Something wrong drawing 3d preview. " + e.ToString());
 
-                            //}
+                            }
                         }
                         else if (test is Curve)
                         {
+                            DetachVisuals();
+                            ClearPointsCollections();
+
                             c = (Curve)test;
                             DrawCurve(c);
+                            RaisePropertyChanged("Points");
                         }
                         else if (test is XYZ)
                         {
+
+                            DetachVisuals();
+                            ClearPointsCollections();
+
                             pt = (XYZ)test;
                             DrawCurve(c);
+                            RaisePropertyChanged("Points");
                         }
                     }
                }));
@@ -267,8 +293,9 @@ namespace Dynamo.Elements
 
         private void DrawPoint(XYZ pt)
         {
+            int lastPointColor = Points.Count() - 1;//master Point list for color assignment
             var ptVis = new Point3D(pt.X, pt.Y, pt.Z);
-            Points[0].Add(ptVis);
+            Points[lastPointColor].Add(ptVis);
         }
 
         private void DrawCurve(Curve c)
@@ -280,14 +307,15 @@ namespace Dynamo.Elements
             XYZ pt2;
             Point3D ptVis1;
             Point3D ptVis2;
+            int lastPointColor = Points.Count() - 1;//master Point list for color assignment
             for (int i = 0; i < points.Count - 1; i++)
             {
                 pt1 = points[i] as XYZ;
                 pt2 = points[i + 1] as XYZ;
                 ptVis1 = new Point3D(pt1.X, pt1.Y, pt1.Z);
                 ptVis2 = new Point3D(pt2.X, pt2.Y, pt2.Z);
-                Points[0].Add(ptVis1);
-                Points[0].Add(ptVis2);
+                Points[lastPointColor].Add(ptVis1);
+                Points[lastPointColor].Add(ptVis2);
             }
         }
 
@@ -345,18 +373,21 @@ namespace Dynamo.Elements
 
         private void AddPointToCorrectCollection(double force, Point3D pt1, Point3D pt2)
         {
-            int maxColors = linesList.Count();
-            double forceNormalized = force / ps.getMaxResidualForce();
-            int forceGroup = (int)(forceNormalized * 9.0);
-            if (forceGroup > maxColors) //maxColors  - points and colors array arrays are sized at 10, somehow we are going out of bounds here, clamp it to prevent hard crash
-            {
-                dynElementSettings.SharedInstance.Bench.Log("Had to clamp forces for display. Original Value: " + forceGroup.ToString());
-                forceGroup = 9; //clamp
 
+            int maxColorIndex = colors.Count()-1;
+
+            double forceNormalized = force / ps.getMaxResidualForce();
+            int forceGroup = (int)Math.Round(forceNormalized * 9.0, 0, MidpointRounding.AwayFromZero);
+            if (forceGroup > maxColorIndex || forceGroup < 0)
+            {
+                Points[0].Add(pt1);
+                Points[0].Add(pt2);
             }
-            //int forceGroup = 9;
-            Points[forceGroup].Add(pt1);
-            Points[forceGroup].Add(pt2);
+            else
+            {
+                Points[forceGroup].Add(pt1);
+                Points[forceGroup].Add(pt2);
+            }
         }
     }
 }
