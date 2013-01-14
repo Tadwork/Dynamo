@@ -59,9 +59,6 @@ limitations under the License.
     <Reference Include="HelixToolkit.Wpf">
       <HintPath>..\packages\HelixToolkit.2012.4.24.1\lib\NET40\HelixToolkit.Wpf.dll</HintPath>
     </Reference>
-    <Reference Include="IronPython">
-      <HintPath>..\packages\IronPython.2.7.3\lib\Net40\IronPython.dll</HintPath>
-    </Reference>
     <Reference Include="IronPython.Modules">
       <HintPath>..\packages\IronPython.2.7.3\lib\Net40\IronPython.Modules.dll</HintPath>
     </Reference>
@@ -70,6 +67,7 @@ limitations under the License.
     </Reference>
     <Reference Include="IronPython.Wpf">
       <HintPath>..\packages\IronPython.2.7.3\lib\Net40\IronPython.Wpf.dll</HintPath>
+    </Reference>
     <Reference Include="HelixToolkit.Wpf.Input">
       <HintPath>..\packages\Helix3D\NET40\HelixToolkit.Wpf.Input.dll</HintPath>
     </Reference>
