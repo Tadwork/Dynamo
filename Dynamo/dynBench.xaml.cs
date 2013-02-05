@@ -40,6 +40,7 @@ using Path = System.IO.Path;
 using Expression = Dynamo.FScheme.Expression;
 using System.Text.RegularExpressions;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace Dynamo.Controls
 {
@@ -65,6 +66,10 @@ namespace Dynamo.Controls
         StringWriter sw;
         string logText;
         ConnectorType connectorType;
+
+        bool isWindowSelecting = false;
+        Point mouseDownPos;
+        List<dynConnector> connectorsToUpdate = new List<dynConnector>();
 
         dynWorkspace _cspace;
         internal dynWorkspace CurrentSpace
@@ -138,6 +143,7 @@ namespace Dynamo.Controls
         }
 
         private bool _activated = false;
+        
         protected override void OnActivated(EventArgs e)
         {
             if (!this._activated)
@@ -723,12 +729,14 @@ namespace Dynamo.Controls
         {
             if (!selectedElements.Contains(sel))
             {
-                //set all other items to the unselected state
-                ClearSelection();
                 selectedElements.Add(sel);
 
                 if(sel is dynNode)
                     (sel as dynNode).Select();
+            }
+            if (!workBench.elementsBeingDragged.Contains(sel))
+            {
+                workBench.elementsBeingDragged.Add(sel);
             }
         }
 
@@ -743,9 +751,10 @@ namespace Dynamo.Controls
                 if(el is dynNode)
                     (el as dynNode).Deselect();
             }
-            selectedElements.Clear();
-        }
 
+            selectedElements.Clear();
+            workBench.ClearDragElements();
+        }
 
         /// <summary>
         /// Called when the MouseWheel has been scrolled.
@@ -778,7 +787,6 @@ namespace Dynamo.Controls
             }
             return false;
         }
-
 
         /// <summary>
         /// Updates an element and all its ports.
@@ -901,14 +909,16 @@ namespace Dynamo.Controls
             }
         }
 
-
         /// <summary>
         /// Called when the mouse has been moved.
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
         public void OnMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+
         {
+            //Debug.WriteLine("Mouse move.");
+
             //If we are currently connecting and there is an active connector,
             //redraw it to match the new mouse coordinates.
             if (isConnecting && activeConnector != null)
@@ -920,19 +930,16 @@ namespace Dynamo.Controls
             //match the new mouse coordinates.
             if (workBench.isDragInProgress)
             {
-                dynNode el = workBench.elementBeingDragged as dynNode;
-                if (el != null)
+                this.Dispatcher.Invoke(new Action(
+                delegate
                 {
-                    foreach (dynPort p in el.InPorts)
+                    foreach (dynConnector c in connectorsToUpdate)
                     {
-                        p.Update();
+                        c.Redraw();
                     }
-                    el.OutPort.Update();
-                    //foreach (dynPort p in el.StatePorts)
-                    //{
-                    //   p.Update();
-                    //}
-                }
+
+                    }
+                ),DispatcherPriority.Render,null);
             }
 
             //If we are panning the workspace, update the coordinate offset for the
@@ -964,6 +971,35 @@ namespace Dynamo.Controls
                     this.CurrentY += newY - oldY;
                     oldX = newX;
                     oldY = newY;
+                }
+            }
+
+            if (isWindowSelecting)
+            {
+                // When the mouse is held down, reposition the drag selection box.
+
+                Point mousePos = e.GetPosition(workBench);
+
+                if (mouseDownPos.X < mousePos.X)
+                {
+                    Canvas.SetLeft(selectionBox, mouseDownPos.X);
+                    selectionBox.Width = mousePos.X - mouseDownPos.X;
+                }
+                else
+                {
+                    Canvas.SetLeft(selectionBox, mousePos.X);
+                    selectionBox.Width = mouseDownPos.X - mousePos.X;
+                }
+
+                if (mouseDownPos.Y < mousePos.Y)
+                {
+                    Canvas.SetTop(selectionBox, mouseDownPos.Y);
+                    selectionBox.Height = mousePos.Y - mouseDownPos.Y;
+                }
+                else
+                {
+                    Canvas.SetTop(selectionBox, mousePos.Y);
+                    selectionBox.Height = mouseDownPos.Y - mousePos.Y;
                 }
             }
         }
@@ -1048,6 +1084,8 @@ namespace Dynamo.Controls
         /// <param name="e"></param>
         private void OnMouseDown(object sender, MouseButtonEventArgs e)
         {
+            Debug.WriteLine("Starting mouse down.");
+
             //Pan with middle-click
             if (e.ChangedButton == MouseButton.Middle)
             {
@@ -1060,8 +1098,50 @@ namespace Dynamo.Controls
             {
                 workBench.Children.Remove(dynToolFinder.Instance);
             }
-        }
 
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                connectorsToUpdate.Clear();
+
+                if (!isConnecting)
+                {
+                    //test if you're hitting a node
+                    //if so, don't start window selecting
+                    hitResultsList.Clear();
+                    TestClick(e.GetPosition(workBench));
+                    dynNode element = null;
+                    if (hitResultsList.Count > 0)
+                    {
+                        foreach (DependencyObject depObj in hitResultsList)
+                        {
+                            element = ElementClicked(depObj, typeof(dynNode)) as dynNode;
+                            if (element != null && element.IsVisible)
+                            {
+                                //clear the selection but don't
+                                //reselect until mouse up.
+                                //ClearSelection();
+                                return;
+                            }
+                        }
+                    }
+
+                    // Capture and track the mouse.
+                    isWindowSelecting = true;
+                    mouseDownPos = e.GetPosition(workBench);
+                    workBench.CaptureMouse();
+
+                    // Initial placement of the drag selection box.         
+                    Canvas.SetLeft(selectionBox, mouseDownPos.X);
+                    Canvas.SetTop(selectionBox, mouseDownPos.Y);
+                    selectionBox.Width = 0;
+                    selectionBox.Height = 0;
+
+                    // Make the drag selection box visible.
+                    selectionBox.Visibility = Visibility.Visible;
+                }
+            }
+            
+        }
 
         /// <summary>
         /// Called when a mouse button is released.
@@ -1070,11 +1150,12 @@ namespace Dynamo.Controls
         /// <param name="e"></param>
         private void OnMouseUp(object sender, MouseButtonEventArgs e)
         {
+            Debug.WriteLine("Starting mouse up.");
+
             //Stop panning if we have released the middle mouse button.
             if (e.ChangedButton == MouseButton.Middle)
             {
                 isPanning = false;
-
                 oldX = 0.0;
                 oldY = 0.0;
                 newX = 0.0;
@@ -1082,9 +1163,121 @@ namespace Dynamo.Controls
             }
 
             if (e.ChangedButton == MouseButton.Left)
+            {
                 this.beginNameEditClick = false;
-        }
 
+                if (isWindowSelecting)
+                {
+                    // Release the mouse capture and stop tracking it.
+                    isWindowSelecting = false;
+                    workBench.ReleaseMouseCapture();
+
+                    // Hide the drag selection box.
+                    selectionBox.Visibility = Visibility.Collapsed;
+
+                    Point mouseUpPos = e.GetPosition(workBench);
+
+                    //clear the selected elements
+                    ClearSelection();
+
+                    foreach (dynNode n in this.Elements)
+                    {
+                        //check if the node is within the boundary
+                        double x = Canvas.GetLeft(n);
+                        double y = Canvas.GetTop(n);
+                        System.Windows.Rect rect =
+                            new System.Windows.Rect(Canvas.GetLeft(selectionBox),
+                                Canvas.GetTop(selectionBox),
+                                selectionBox.Width,
+                                selectionBox.Height);
+
+                        bool contains = rect.Contains(x, y);
+                        if (contains)
+                        {
+                            if (!selectedElements.Contains(n))
+                                selectedElements.Add(n);
+                            if (!workBench.elementsBeingDragged.Contains(n))
+                                workBench.elementsBeingDragged.Add(n);
+
+                            if (n is dynNode)
+                                (n as dynNode).Select();
+                        }
+                    }
+
+                    connectorsToUpdate.Clear();
+
+                    //store all the connectors involved in this
+                    //selection for updating
+                    foreach (UIElement selEl in workBench.ElementsBeingDragged)
+                    {
+                        dynNode el = selEl as dynNode;
+                        if (el != null)
+                        {
+                            foreach (dynPort p in el.InPorts)
+                            {
+                                foreach (dynConnector c in p.Connectors)
+                                {
+                                    if (!connectorsToUpdate.Contains(c))
+                                    {
+                                        connectorsToUpdate.Add(c);
+                                    }
+                                }
+                            }
+                            foreach (dynConnector c in el.OutPort.Connectors)
+                            {
+                                if (!connectorsToUpdate.Contains(c))
+                                {
+                                    connectorsToUpdate.Add(c);
+                                }
+                            }
+                        }
+                    }
+
+                    return;
+                }
+                else
+                {
+                    //if you're dragging a bunch of stuff, when you let go
+                    //the stuff should stay highlighted
+                    //if (this.SelectedElements.Count > 1)
+                    //    return;
+
+                    //otherwise, assume that we want to select what's
+                    //under the mouse
+                    hitResultsList.Clear();
+                    TestClick(e.GetPosition(workBench));
+                    dynNode element = null;
+                    if (hitResultsList.Count > 0)
+                    {
+                        foreach (DependencyObject depObj in hitResultsList)
+                        {
+                            element = ElementClicked(depObj, typeof(dynNode)) as dynNode;
+                            if (element != null && element.IsVisible)
+                            {
+                                Debug.WriteLine("Element clicked");
+                                ClearSelection();
+                                SelectElement(element);
+
+                                //we found an element, so just get out of here
+                                foreach (dynPort p in element.InPorts)
+                                {
+                                    foreach (dynConnector c in p.Connectors)
+                                    {
+                                        connectorsToUpdate.Add(c);
+                                    }
+                                }
+                                foreach (dynConnector c in element.OutPort.Connectors)
+                                {
+                                    connectorsToUpdate.Add(c);
+                                }
+
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         public void Log(Exception e)
         {
@@ -1092,7 +1285,6 @@ namespace Dynamo.Controls
             Log(e.Message);
             Log(e.StackTrace);
         }
-
 
         private void BeginDragElement(string name, Point eleOffset)
         {
@@ -1746,16 +1938,12 @@ namespace Dynamo.Controls
 
         void OnPreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            //Keyboard.Focus(this);
+            Debug.WriteLine("Starting preview mouse down.");
 
             hitResultsList.Clear();
             TestClick(e.GetPosition(workBench));
 
             dynPort p = null;
-            DragCanvas dc = null;
-            dynNode element = null;
-
-            bool hit = false;
 
             //figure out which element is hit
             //HACK: put the tests with break in highest to
@@ -1769,25 +1957,8 @@ namespace Dynamo.Controls
                     p = ElementClicked(depObj, typeof(dynPort)) as dynPort;
                     if (p != null && p.Owner.IsVisible)
                     {
-                        hit = true;
                         break;
                     }
-
-                    //traverse the tree through all the
-                    //hit elements to see if you get an element
-                    element = ElementClicked(depObj, typeof(dynNode)) as dynNode;
-                    if (element != null && element.IsVisible)
-                    {
-                        hit = true;
-                        break;
-                    }
-                }
-
-                if (!hit)
-                {
-                    //traverse the tree through all the
-                    //hit elements to see if you get the canvas
-                    dc = ElementClicked(hitResultsList[0], typeof(DragCanvas)) as DragCanvas;
                 }
             }
 
@@ -1871,17 +2042,6 @@ namespace Dynamo.Controls
             }
             #endregion
 
-            if (element != null)
-            {
-                Debug.WriteLine("Element clicked");
-                SelectElement(element);
-            }
-
-            if (dc != null)
-            {
-                Debug.WriteLine("Canvas clicked");
-                ClearSelection();
-            }
         }
 
         //void OnMouseRightButtonDown(object sender, System.Windows.Input.MouseEventArgs e)
@@ -1918,6 +2078,7 @@ namespace Dynamo.Controls
 
         //bubbling
         //from element up to root
+        
         private void OnKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
         {
 
@@ -3585,7 +3746,10 @@ namespace Dynamo.Controls
             }
 
             UnlockUI();
-        } 
+        }
+
+
+
     }
 
     public class dynSelection : ObservableCollection<System.Windows.Controls.UserControl>

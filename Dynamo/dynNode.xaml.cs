@@ -392,6 +392,9 @@ namespace Dynamo.Elements
             SetupPortGrids();
             RegisterInputs();
             RegisterOutputs();
+
+            UpdateLayout();
+
             SetToolTips();
             ValidateConnections();
         }
@@ -401,6 +404,9 @@ namespace Dynamo.Elements
             ResizeElementForInputs();
             SetupPortGrids();
             RegisterInputs();
+
+            UpdateLayout();
+
             SetToolTips();
             ValidateConnections();
             UpdateConnections();
@@ -1715,19 +1721,19 @@ namespace Dynamo.Elements
                new object[] { this, ElementState.SELECTED }
             );
 
-            this.UIDocument.Selection.Elements.Clear();
-            foreach (List<ElementId> elList in this.elements)
-            {
-                foreach (ElementId id in elList)
-                {
-                    Element e = this.UIDocument.Document.get_Element(id);
-                    if (e != null)
-                    {
-                        this.UIDocument.Selection.Elements.Add(e);
-                    }
+            //this.UIDocument.Selection.Elements.Clear();
+            //foreach (List<ElementId> elList in this.elements)
+            //{
+            //    foreach (ElementId id in elList)
+            //    {
+            //        Element e = this.UIDocument.Document.get_Element(id);
+            //        if (e != null)
+            //        {
+            //            this.UIDocument.Selection.Elements.Add(e);
+            //        }
 
-                }
-            }
+            //    }
+            //}
         }
 
         public void Deselect()
