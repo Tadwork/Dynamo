@@ -1638,21 +1638,27 @@ namespace Dynamo.Controls
                     e.EnableReporting();
 
                 this.hideWorkspace(ws);
-                this.SaveFunction(ws, false);
 
                 #endregion
 
                 ws.FilePath = xmlPath;
 
+                bool canLoad = true;
+
+                //For each node this workspace depends on...
                 foreach (var dep in dependencies)
                 {
+                    //If the node hasn't been loaded...
                     if (!dynFunctionDict.ContainsKey(dep))
                     {
+                        canLoad = false;
+                        //Dep -> Ws
                         if (children.ContainsKey(dep))
                             children[dep].Add(ws);
                         else
                             children[dep] = new HashSet<dynWorkspace>() { ws };
 
+                        //Ws -> Deps
                         if (parents.ContainsKey(ws.Name))
                             parents[ws.Name].Add(dep);
                         else
@@ -1660,16 +1666,10 @@ namespace Dynamo.Controls
                     }
                 }
 
-                if (children.ContainsKey(ws.Name))
-                {
-                    foreach (var child in children[ws.Name])
-                    {
-                        var allParents = parents[child.Name];
-                        allParents.Remove(ws.Name);
-                        if (!allParents.Any())
-                            this.SaveFunction(child, false);
-                    }
-                }
+                if (canLoad)
+                    SaveFunction(ws, false);
+
+                nodeWorkspaceWasLoaded(ws, children, parents);
             }
             catch (Exception ex)
             {
@@ -1681,6 +1681,31 @@ namespace Dynamo.Controls
             }
 
             return true;
+        }
+
+        void nodeWorkspaceWasLoaded(
+            dynWorkspace ws, 
+            Dictionary<string, HashSet<dynWorkspace>> children,
+            Dictionary<string, HashSet<string>> parents)
+        {
+            //If there were some workspaces that depended on this node...
+            if (children.ContainsKey(ws.Name))
+            {
+                //For each workspace...
+                foreach (var child in children[ws.Name])
+                {
+                    //Nodes the workspace depends on
+                    var allParents = parents[child.Name];
+                    //Remove this workspace, since it's now loaded.
+                    allParents.Remove(ws.Name);
+                    //If everything the node depends on has been loaded...
+                    if (!allParents.Any())
+                    {
+                        this.SaveFunction(child, false);
+                        nodeWorkspaceWasLoaded(child, children, parents);
+                    }
+                }
+            }
         }
 
         void hideWorkspace(dynWorkspace ws)
@@ -2458,30 +2483,20 @@ namespace Dynamo.Controls
                 //TODO: Flesh out error handling
                 try
                 {
-                    Dictionary<dynNode, string> symbols;
-                    Dictionary<dynNode, List<dynNode>> letEntries;
-                    List<dynNode> topLevelLetEntries;
-                    if (!GraphAnalysis.LetOptimizations(
-                        homeSpace,
-                        out symbols,
-                        out letEntries,
-                        out topLevelLetEntries))
-                    {
-                        throw new Exception("Dependency loop found in workflow. Cannot evaluate.");
-                    }
-
                     var topNode = new FSchemeInterop.Node.BeginNode(new List<string>());
                     var i = 0;
                     foreach (var topMost in topElements)
                     {
                         var inputName = i.ToString();
                         topNode.AddInput(inputName);
-                        topNode.ConnectInput(inputName, topMost.Build(symbols, letEntries, true));
+                        topNode.ConnectInput(inputName, topMost.BuildExpression());
                         i++;
                     }
 
-                    Expression runningExpression = dynNode.wrapLets(
-                        topNode, symbols, letEntries, topLevelLetEntries).Compile();
+                    Expression runningExpression = topNode.Compile();
+
+                    //Dispatcher.Invoke(new Action(
+                    //    () => Log(FScheme.printExpression("", runningExpression))));
 
                     //Run Delegate
                     Action run = delegate
@@ -3000,19 +3015,7 @@ namespace Dynamo.Controls
 
                 if (top != default(dynNode))
                 {
-                    Dictionary<dynNode, string> symbols;
-                    Dictionary<dynNode, List<dynNode>> letEntries;
-                    List<dynNode> topLevelLetEntries;
-                    if (!GraphAnalysis.LetOptimizations(
-                        funcWorkspace,
-                        out symbols,
-                        out letEntries,
-                        out topLevelLetEntries))
-                    {
-                        throw new Exception("Dependency loop found in workflow. Cannot evaluate.");
-                    }
-
-                    var topNode = top.Build(symbols, letEntries, true);
+                    var topNode = top.BuildExpression();
                     
                     Expression expression = Utils.MakeAnon(variableNames, topNode.Compile());
 

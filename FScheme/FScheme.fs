@@ -321,7 +321,7 @@ let rec printExpression indent syntax =
              | Number_E(n)                -> n.ToString()
              | String_E(s)                -> "\"" + s + "\""
              | Id(s)                      -> s
-             | SetId(s, expr)             -> "(set! " + s + " " + printExpression "" expr
+             | SetId(s, expr)             -> "(set! " + s + " " + printExpression "" expr + ")"
              | Let(names, exprs, body)    -> printLet "let" names exprs body
              | LetRec(names, exprs, body) -> printLet "letrec" names exprs body
              | Fun(names, body)           -> "(lambda (" + String.Join(" ", List.map printParam names) + ") " + printExpression "" body + ")"
@@ -700,9 +700,9 @@ let rec private compile (compenv : CompilerEnv) expression : (Environment -> Val
             ///The index of the new identifier box in the mutated environment.
             let lastindex = compenv.Value.Head.Length
             //Update the compiler environment.
-            let cenv = ref <| (compenv.Value.Head @ [name]) :: compenv.Value.Tail
+            compenv := (compenv.Value.Head @ [name]) :: compenv.Value.Tail
             ///Compiled binding expression.
-            let cbody = compile cenv body
+            let cbody = compile compenv body
             ///Dummy value for undefined identifiers.
             let dummy' = Dummy(sprintf "define '%s'" name)
             //At runtime...
@@ -715,8 +715,6 @@ let rec private compile (compenv : CompilerEnv) expression : (Environment -> Val
                 env.Value.Head.Value.SetValue(def, lastindex)
                 //Evaluate the binding expression with the mutated environment
                 def := cbody env
-                ///Set the reference to the updated environment
-                compenv := !cenv
                 //Return the dummy for the define statement
                 dummy
    
@@ -806,13 +804,22 @@ let rec private compile (compenv : CompilerEnv) expression : (Environment -> Val
         //At runtime, evaluate the expression and select the correct branch
         fun env -> if ccond env |> exprToBool then cthen env else celse env
 
+    //An empty begin statement is valid, but returns a dummy
+    | Begin([]) -> wrap <| Dummy("empty begin")
+    
     //A begin statement with one sub-expression is the same as just the sub-expression.
     | Begin([expr]) -> compile' expr
 
     //Expression sequences
     | Begin(exprs) ->
+        ///Merges all nested begin expressions
+        let rec merge a = function
+            | [Begin([]) as e]   -> merge (compile' e :: a) []
+            | Begin(exprs') :: t -> merge (merge a exprs') t
+            | h :: t             -> merge (compile' h :: a) t
+            | []                 -> List.rev a
         ///Compiled expressions
-        let body = List.map compile' exprs
+        let body = merge [] exprs
         ///Dummy value for empty begin statements
         let d = Dummy("empty begin")
         ///Tail-recursive helper for evaluating a sequence of expressions.
@@ -993,7 +1000,14 @@ let RunTests (log : ErrorLog) =
     let rep ce env = List.ofSeq >> parse >> Begin >> eval ce env >> print
     let case source expected =
         try
-            let testEnv = List.map (fun (x : Frame) -> Array.map (fun (y : Value ref) -> ref y.Value) x.Value |> ref) environment.Value |> ref
+            let testEnv : Environment =
+                List.map (fun (x : Frame) ->
+                            Array.map (fun (y : Value ref)
+                                            -> ref y.Value)
+                                      x.Value
+                            |> ref)
+                         environment.Value
+                |> ref
             let testCEnv = compileEnvironment.Value |> ref
             let output = rep testCEnv testEnv source
             if output <> expected then
