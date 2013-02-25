@@ -218,7 +218,7 @@ namespace Dynamo
 
         public string GetUpdaterName()
         {
-            return "Dyanmo Element Watcher";
+            return "Dynamo Element Watcher";
         }
     }
 }

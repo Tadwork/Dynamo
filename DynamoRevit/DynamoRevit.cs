@@ -146,7 +146,7 @@ namespace Dynamo.Applications
                 //create a log file
                 string tempPath = System.IO.Path.GetTempPath();
                 string logPath = Path.Combine(tempPath, "dynamoLog.txt");
-
+                
                 if (File.Exists(logPath))
                     File.Delete(logPath);
 
@@ -164,7 +164,6 @@ namespace Dynamo.Applications
                 defaultLevel = fecLevel.ToElements()[0] as Level;
 
                 #endregion
-
                 dynElementSettings.SharedInstance.Revit = m_revit;
                 dynElementSettings.SharedInstance.Doc = m_doc;
                 dynElementSettings.SharedInstance.DefaultLevel = defaultLevel;
@@ -173,6 +172,7 @@ namespace Dynamo.Applications
                 IdlePromise.ExecuteOnIdle(new Action(
                     delegate
                     {
+                        try{
                         //get window handle
                         IntPtr mwHandle = Process.GetCurrentProcess().MainWindowHandle;
 
@@ -206,6 +206,11 @@ namespace Dynamo.Applications
                         dynamoForm.Show();
 
                         dynamoForm.Closed += new EventHandler(dynamoForm_Closed);
+                         }
+                        catch (Exception ex)
+                         {
+                             System.Windows.Forms.MessageBox.Show(ex.ToString());
+                         }
                     }
                 ));
             }
