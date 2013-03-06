@@ -3,6 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{6C8C52F4-ABB9-4AD9-ADAB-D774458A2190}"
 EndProject
+Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamoElements", "Dynamo\DynamoElements.csproj", "{7858FA8C-475F-4B8E-B468-1F8200778CF8}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -21,8 +22,6 @@ EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "FScheme", "FScheme\FScheme.fsproj", "{F0E5A3E5-BDD0-41AE-848E-DED9EFC5FA7F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FSchemeInterop", "FSchemeInterop\FSchemeInterop.csproj", "{F25808D6-DF62-4732-9453-D4978079864C}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamoSandbox", "DynamoSandbox\DynamoSandbox.csproj", "{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}"
 EndProject
 Global
 	GlobalSection(TestCaseManagementSettings) = postSolution
@@ -87,16 +86,6 @@ Global
 		{F25808D6-DF62-4732-9453-D4978079864C}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
 		{F25808D6-DF62-4732-9453-D4978079864C}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{F25808D6-DF62-4732-9453-D4978079864C}.Release|x86.ActiveCfg = Release|Any CPU
-		{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}.Debug|Any CPU.ActiveCfg = Debug|x86
-		{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
-		{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}.Debug|Mixed Platforms.Build.0 = Debug|x86
-		{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}.Debug|x86.ActiveCfg = Debug|x86
-		{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}.Debug|x86.Build.0 = Debug|x86
-		{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}.Release|Any CPU.ActiveCfg = Release|x86
-		{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}.Release|Mixed Platforms.ActiveCfg = Release|x86
-		{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}.Release|Mixed Platforms.Build.0 = Release|x86
-		{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}.Release|x86.ActiveCfg = Release|x86
-		{0EFABBF0-2B81-4423-B8E2-6111FBE69B79}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
